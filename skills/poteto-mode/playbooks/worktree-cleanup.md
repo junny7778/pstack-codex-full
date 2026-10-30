@@ -1,13 +1,12 @@
-### Worktree cleanup
+### Worktree and simulator cleanup
 
-用于用户明确要求检查磁盘占用、清理 worktree 或删除旧模拟器的场景。删除操作必须先展示精确目标并获得用户授权。
+1. Snapshot and audit. Record `df -h /`, then run `scripts/worktree-audit.sh [-b <pr-base-ref>] [repo-path]` (principle-build-the-lever). Without `-b` it checks `MERGED` against `origin/HEAD`, so pass `-b origin/<branch>` when PRs target another branch. It reads paths from `git worktree list`, never hand-typed, since a hand-typed `myrepo-worktrees/x` misses one that lives at `.Codex/worktrees/myrepo/x` (principle-encode-lessons-in-structure). It classifies each worktree by size, age, merge state, uncommitted work, PR state, and the newest chat that touched it, then suggests a bucket. The transcript scan is slow, so background it.
+2. The bucket is advice, not permission. The pinned and active chats are the real artifact (principle-prove-it-works). Get that set from the user or sidebar and cross-check every candidate. The lever has marked `safe` a worktree the user had pinned, so the pinned set wins.
+3. Verify usage before deleting. For every `verify-recent-chat` row, or anything you doubt, fan subagents out to read the transcripts and report whether the chat is pinned or ongoing and which worktrees it touches (principle-guard-the-context-window, transcripts are bulk). A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+4. Pause on irreversible loss. `wip:N` is N tracked uncommitted edits. Show the diff and get a decision first, since removing a clean worktree is recoverable from its branch but uncommitted work is gone. `scratch:N` is untracked throwaway, safe to drop, but name the files. Per Autonomy, clean and merged and not-in-use proceeds. `wip` and in-use pause.
+5. Prune the confirmed set. Per path, `git worktree remove --force <path>`. If the dir survives on ignored build artifacts, `rm -rf` it, then `git worktree prune`. Branch refs survive, so no commits are lost. Confirm with `df -h /` and re-list.
+6. Simulators and other reclaimers. Simulators are usually the next-biggest win. `xcrun simctl --set testing delete all` (XCTestDevices clones), `xcrun simctl delete unavailable`, and `xcrun simctl runtime list` then `runtime delete <id>` for old runtimes. More when needed: Xcode `DerivedData` and `iOS DeviceSupport`, `~/Library/Application Support/Codex` (`state.vscdb.backup`, and `snapshots/roots/<root>` where a `<root>` named for a folder you opened as a workspace balloons), package caches (pnpm, uv, brew, yarn). Clear only caches the user has not said to keep.
 
-1. 只读收集磁盘空间和 `git worktree list --porcelain`。
-2. 对每个非主 worktree 检查未提交改动、分支、远端状态、合并状态和关联 PR。
-3. 分成四类：保留进行中、保留待确认、可安全移除、证据不足。
-4. 向用户展示每个建议删除的绝对路径、大小和判断证据。
-5. 用户确认后，只删除明确选中的 worktree。优先使用 `git worktree remove`，不对宽泛目录执行递归删除。
-6. 删除后运行 `git worktree prune`，重新读取列表和磁盘空间。
-7. 模拟器或其他缓存单独列出并单独确认，不能与 worktree 清理捆绑授权。
+This is the one playbook that deletes user state with no code review to catch a slip, so the gates above are the review.
 
-输出保留项、删除项、回收空间、未能判断的路径和是否可恢复。
+**Reply:** `df -h /` before and after with space reclaimed, the worktrees pruned, and a one-line reason for each held back (in-use by which chat, or uncommitted work).

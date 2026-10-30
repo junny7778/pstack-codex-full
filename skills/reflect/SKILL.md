@@ -5,18 +5,64 @@ description: "在长任务完成后使用多个子 Agent 复盘执行过程，�
 
 # Reflect
 
-从当前任务中提取可复用经验，并把经验路由到现有 Skill、自动检查或待办事项。
+Mine the current conversation for durable learnings, then route them into skill edits.
 
-## 工作流
+Invoke when the user says "reflect" or "/reflect". Skip when the conversation is trivial, off-topic, or already covered by an existing skill the parent followed correctly. One-offs are not learnings.
 
-1. 使用当前对话和已产生的文件、diff、命令结果作为证据。不要跨工作区搜索私人对话。
-2. 如果无法读取完整对话记录，先写一份只包含已观察事实的任务摘要。
-3. 用户已明确要求多 Agent 复盘时，同时启动三个评审 Agent：判断质量、工具与流程、反方视角。提示模板位于 `references/`。
-4. 汇总为三类：接受、拒绝、待办。一次性偶发情况不能直接变成通用规则。
-5. 能用类型、lint、脚本或运行检查强制执行的经验，优先进入结构性待办，而不是继续增加文字说明。
-6. 在修改任何现有 Skill 前，把建议和证据展示给用户。Skill 会影响未来任务，必须获得明确授权后再修改。
-7. 获准后使用 `$skill-creator` 完成实质改动，并运行相应验证器。
+## 1. Locate the active transcript
 
-## 输出
+Before fanning out, find this conversation's transcript in the `agent-transcripts/` directory the system prompt names. Do not glob across `~/.Codex/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
 
-列出接受的经验、拒绝原因、结构性待办，以及获准后实际修改的 Skill。
+```bash
+ls -t <agent-transcripts>/*.jsonl <agent-transcripts>/*/*.jsonl <agent-transcripts>/*/subagents/*.jsonl 2>/dev/null | head -10
+```
+
+That covers the legacy flat (`<id>.jsonl`), current nested (`<id>/<id>.jsonl`), and subagent (`<parent>/subagents/<child>.jsonl`) layouts. For each candidate, read the first JSONL line. Take the file whose `message.content[0].text` contains the conversation's opening user prompt. If none matches, pass a tight digest of the session instead.
+
+## 2. Spawn three reviewers in parallel
+
+If the current session provides collaboration tools, launch three independent reviewers in parallel. Do not assume role, read-only, or MCP access settings; state any tool limits in the result.
+
+Use model and reasoning preferences from `~/.codex/pstack-models.md` only if the session tools support them. Otherwise use the parent model and do not claim model diversity.
+
+| Lens | Role line | Default `model` | Prompt template |
+|---|---|---|---|
+| Judgment | `reflect judgment, divergent, synthesizer` | `inherit-parent` | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling` | `inherit-parent` | `references/tooling-reviewer.md` |
+| Divergent | `reflect judgment, divergent, synthesizer` | `inherit-parent` | `references/divergent-reviewer.md` |
+
+Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `spawn_agent` response body.
+
+## 3. Synthesize
+
+After reviewer reports arrive, use one synthesizer through the available collaboration tools. Verify citations with available sources, and state when a referenced source or tool is unavailable. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+
+## 4. Structural enforcement check
+
+Move any Accepted item that a lint rule, script, metadata flag, or runtime check would enforce more reliably to Backlog. See the **encode-lessons-in-structure** principle skill.
+
+## 5. Apply
+
+Present the synthesizer's full Accepted / Rejected / Backlog output and wait for explicit approval before applying any Accepted edit. The user picks the subset and may redirect routings. Skill changes affect every future agent in the org. Do not auto-apply.
+
+File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+
+Never edit a skill under `plugins/cache/`. Before approval, show its destination, `.agents/skills/<skill>/` or `~/.codex/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push.
+
+Follow each approved row's Routing exactly:
+
+- Trivial existing-skill edit (a one-line bullet, a tightened sentence, a stale fact corrected): the parent does it directly.
+- Substantive existing-skill edit (a new section, a new pattern table, more than ~10 lines): hand to Codex's built-in `create-skill` skill and run its draft / test / iterate loop.
+- `tune description: <skill path>` (the skill exists but didn't trigger when it should have): hand to `create-skill` and run its description-optimization loop.
+- `new skill via create-skill: <kebab-name>`: hand creation to `create-skill`. Do not invent the shape ad hoc.
+
+If your environment ships a SKILL.md validator, run it on every touched skill before declaring done.
+
+## 6. Summarize for the user
+
+Short list, no preamble:
+
+- Edits applied: `<skill path>`. What changed, one line each.
+- New skills created: `<skill path>`. One line each (rare).
+- Backlog filed to the devex tracker: `<issue title>` (`<tags>`). One line each.
+- Dropped: one line per rejected finding + reason from the synthesizer.

@@ -1,25 +1,26 @@
 {
   "name": "pstack-codex-full",
-  "version": "0.1.0",
-  "description": "面向 Codex 的完整 pstack 工程工作流，包含 51 个 Skill。",
+  "version": "0.1.1",
+  "description": "面向 Codex 的完整 pstack 工程工作流，包含 58 个 Skill。",
   "author": {
-    "name": "pstack contributors and Codex port maintainers"
+    "name": "R Z"
   },
   "license": "MIT",
   "skills": "./skills/",
   "interface": {
     "displayName": "pstack Codex 完整版",
-    "shortDescription": "51 个工程、评审和多 Agent 工作流",
-    "longDescription": "将 GitHub 原版 pstack 的 51 个 Skill 适配到 Codex，包括工程原则、代码理解、架构、验证、多 Agent 审查和复杂任务编排。",
-    "developerName": "pstack contributors and Codex port maintainers",
+    "shortDescription": "58 个工程、评审和多 Agent 工作流",
+    "longDescription": "将上游 pstack 的 58 个 Skill 移植并适配到 Codex，包括工程原则、代码理解、架构、形式化验证、多 Agent 审查和复杂任务编排。",
+    "developerName": "R Z",
     "category": "Developer Tools",
     "capabilities": [],
-    "websiteURL": "https://github.com/cursor/plugins/tree/main/pstack",
+    "websiteURL": "https://github.com/junny7778/pstack-codex-full",
     "defaultPrompt": [
       "使用 poteto-mode 处理这个复杂工程任务。",
       "使用 interrogate 对当前改动做多视角审查。",
       "使用 how 解释这个子系统的运行方式。"
     ],
     "logo": "./assets/logo.png"
-  }
+  },
+  "homepage": "https://github.com/junny7778/pstack-codex-full"
 }

@@ -2,7 +2,7 @@
 
 ## 兼容策略
 
-51 个 Skill 分为三类：
+58 个 Skill 分为三类：
 
 - 原则和独立写作 Skill 尽量保留上游规则，只修改中文调用描述。
 - 已存在于 `pstack-plugin 0.2.0` 的 26 个 Skill，使用其 Codex/ChatGPT 适配作为兼容基线，并合并上游资源。
@@ -13,8 +13,8 @@
 | 上游概念 | Codex 处理方式 |
 |---|---|
 | Cursor Task Agent | Codex 子 Agent 协作工具 |
-| Cursor Custom Mode | Skill 触发和 `$poteto-mode` 路由 |
-| 固定 Claude/Grok 模型 | 默认继承当前模型 |
+| Cursor Custom Mode | 显式调用 Codex Skill；按描述自动匹配 |
+| 固定 Claude/Grok 模型 | 仅在当前协作工具支持时配置，否则继承当前模型 |
 | Cursor loop | 等待机制或 heartbeat automation |
 | Cursor AskQuestion | 必要时向用户提出一个简短问题 |
 | `.cursor/skills` | 插件 `skills/` 或项目 `.agents/skills/` |

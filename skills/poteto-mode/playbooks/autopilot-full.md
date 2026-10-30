@@ -1,14 +1,25 @@
 ### Autopilot-full
 
-用于用户明确要求多 Agent 将多个独立 PR 从构建推进到合并的场景。该请求必须同时明确允许创建、推送和合并 PR。
+**You own the verdicts, never the PRs. One owner carries each PR from build to merge, and nothing merges until your swarm, which never wrote the code, has proven the code that lands.**
 
-1. 冻结 PR 或工作单元清单，记录依赖、所有者、允许写入范围和验证标准。
-2. 一个 PR 只能有一个写入者。每个 Agent 使用独立分支或 worktree。
-3. 先跑一个完整试点，验证创建、测试、审查和合并流程。
-4. 按 Codex 当前并发限制启动 Agent。主 Agent负责汇总、验证和授权检查。
-5. 每个 PR 在当前 head SHA 上通过真实验证和必需检查后才可进入合并队列。
-6. 合并前重新确认授权、依赖顺序和平台状态。一次合并一个 PR，并读取实际合并结果。
-7. 未授权的部署、删除、权限变更或对外消息必须暂停。
-8. 任一工作单元连续失败后停止替换循环，留下证据和恢复方案。
+A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
 
-输出每个 PR 的状态、head SHA、验证结果、已合并项、失败项和仍需用户决定的事项。
+1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
+2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner uses the collaboration tools available in the session to build, open its PR per `playbooks/opening-a-pr.md`, prove the change on the real artifact, babysit to green per `playbooks/babysit.md`, and merge once steps 4 and 5 clear it.
+
+   Open the PR early so CI and bots run alongside the work. The code is ready only after the available writing and comment review passes, including `/unslop` and `/no-comments`, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+
+   Assume the VM dies. Soon after starting, push and start a decision trail in the root agent's store (path in the system prompt) per the **show-me-your-work** skill, then push each finished unit before you start the next. Whoever spawns a subagent records its id, state, and a stuck-after runtime from past runs of its kind in that store, so the root can probe it if the parent dies. Force-push only your own branch, with `--force-with-lease` pinned to the SHA you last pushed or took over, and on any push you did not make, stop and report to the root.
+3. **Run owners in parallel off trunk, never stacked,** so each PR lands on its own.
+4. **Swarm-verify once.** A full swarm runs once, at the code-ready head. Another full swarm runs only for new behavior, a redesign, or a large new diff. A rebase, a merge-conflict resolution, or a minor fix gets a single verifier at the new head, and a wording-only change gets none. Fan out independent verifiers at the code-ready SHA per the **swarm** skill. They re-run the gates, prove the load-bearing behavior live on the real surface through an available control skill or a named driver, and audit the diff. The verdict is not clean without the live lane, or before you audit the merge-ready report's receipts, because no lane trusts a claim it has not checked.
+
+   Block a PR only for a problem you can show, with a failing run at the head or a doc line the PR made wrong. A problem the PR's base already has, whether trunk or the PR below it in a stack, doesn't block unless the PR copies it or newly reaches it. Only a bug a user would hit, a failed gate, or a wrong shipped doc blocks, and everything else goes in a follow-up.
+5. **The owner merges only what you verified, tested on the trunk it lands on.** Green CI alone never authorizes a merge. Once the swarm's lanes have started, merge prep rebases onto current trunk, reports the new head, and waits for green CI.
+
+   Right before merging, fetch trunk and ask whether its changes can affect the patch, because rebasing for every trunk move never ends. Rebase and wait for CI when the code that would land was never tested, as with a conflict, a file both sides changed, or a change to which checks run for the PR. A lockfile both sides changed needs no rebase when a frozen install passes on the merge result and the packages the PR changes resolve there as on the head, because that install tests the lockfile that would land, and a failing install means the rebase must repair it. When trunk changed a caller of the patch or something the patch depends on, such as code it calls or a dependency version, run the patch's checks on the merge result and merge on a pass. Otherwise merge. If trunk would force a third rebase past merge prep, hold and report to the root, which sequences the colliding work.
+6. **Run the root layer.** Anything that loosens a gate, such as a raised budget or an allowlist entry, needs a verifier's proof and then your fresh countersign, because the owner is the one who wants green. Under a grant that covers approvals, that countersign is the approval, and the owner's record of it points at your countersign for a lane to check. A disabled or soft-failed check always comes out, because it stops guarding every case. Never give or bypass an approval the forge enforces, because no countersign covers it.
+
+   On the operator's go, arm `heartbeat automation 1h` to audit until no delegated work is left, because long runs drift and agents stall silently. Each tick re-reads this playbook from trunk and fixes drift, such as an unreported head or an unrecorded agent, by having its owner record it, because drift is a gap in the record, not a stall. It probes every agent, down to the leaf lanes, and judges each by its side effects, because status text and summaries can hide a stuck child. An agent is stuck when it errors, cannot start turns, or shows nothing new past its stuck-after runtime, and so is an owner that has neither pushed nor written a trail row by the first tick. One waiting on you or the operator is not stuck, so answer it. Replace a stuck agent at once, without waiting for its stop to land. A tick that changed something for the operator ends by catching them up per the **ketchup** skill, and one that changed nothing stays quiet.
+7. **Stand down at once on the operator's stop.** A hold reaches every owner as a zero-writes order. Each reports where it stands and keeps its brief until the operator releases it.
+
+**Reply:** catch the operator up per the **ketchup** skill, covering each PR's state and verdict, what merged, countersigns and why, open operator gates, and parked follow-ups, with links to each PR and the trails.

@@ -1,13 +1,8 @@
 ### Autopilot-stack
 
-用于用户明确要求多 Agent 构建和验证一个线性 PR stack，但由用户最终落地的场景。
+Run the Autopilot-full playbook, but do not merge.
 
-1. 定义 stack 顺序、每层范围、目标基础分支和禁止操作。
-2. 一个分支只有一个写入者。并行任务不得共享可变状态。
-3. 先完成底层试点，确认验证和堆叠方法正确。
-4. 构建上层前记录所依赖的准确 base SHA。底层变化后重新验证受影响层。
-5. 每层保存当前 head SHA、diff、检查和行为验证结果。
-6. 不合并、不部署、不 force-push，除非用户另外明确授权。
-7. 最终交付一个顺序明确、每层可审查、验证证据完整的 stack。
+1. **In place of step 5, stop at verified.** Stop when each PR is verified and green at its current head, then hand the PRs to the operator. After the handoff, nobody pushes without the operator's go. Every loop tick prompt names this file, so each tick sees the no-merge rule.
+2. **Stack a PR only when it builds on another PR.** This is the one exception to step 3. Base the PR on the other PR's branch in place of trunk, per **Size and stacks** in `playbooks/opening-a-pr.md`. In place of step 2's rebase onto trunk, each PR rebases onto its parent PR's branch, and the stack root rebases onto trunk. A new head on the lower PR restacks the PRs above it, and a PR whose `git patch-id` the restack leaves unchanged keeps its verdict.
 
-输出 stack 顺序、分支和 PR、每层验证状态、已知依赖风险，以及用户落地时需要执行的步骤。
+**Reply:** list each PR with its verdict, in place of what merged.

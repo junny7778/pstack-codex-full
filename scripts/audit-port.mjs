@@ -19,13 +19,14 @@ const entries = (await readdir(skillsRoot, { withFileTypes: true }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
 const errors = [];
-if (entries.length !== 51) errors.push(`Skill 数量应为 51，实际为 ${entries.length}`);
+if (entries.length !== 58) errors.push(`Skill 数量应为 58，实际为 ${entries.length}`);
 
-async function collectMarkdown(dir) {
+async function collectMarkdown(dir, { skipNodeModules = false } = {}) {
   const files = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (skipNodeModules && entry.isDirectory() && entry.name === "node_modules") continue;
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...await collectMarkdown(path));
+    if (entry.isDirectory()) files.push(...await collectMarkdown(path, { skipNodeModules }));
     else if (entry.isFile() && entry.name.endsWith(".md")) files.push(path);
   }
   return files;
@@ -51,7 +52,7 @@ for (const entry of entries) {
     if (!/[\u3400-\u9fff]/.test(description)) errors.push(`${entry.name}: description 不是中文`);
   }
 
-  for (const file of await collectMarkdown(skillDir)) {
+  for (const file of await collectMarkdown(skillDir, { skipNodeModules: true })) {
     const body = await readFile(file, "utf8");
     for (const [label, pattern] of forbidden) {
       if (pattern.test(body)) errors.push(`${file.slice(root.length + 1)}: 残留${label}`);
@@ -73,5 +74,5 @@ if (errors.length > 0) {
   console.error(errors.join("\n"));
   process.exitCode = 1;
 } else {
-  console.log("迁移检查通过：51 个 Skill、中文描述、引用和平台兼容性均符合要求。");
+  console.log("迁移检查通过：58 个 Skill、中文描述、引用和平台兼容性均符合要求。");
 }

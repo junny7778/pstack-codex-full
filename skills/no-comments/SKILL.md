@@ -5,18 +5,19 @@ description: "审查代码注释，删除无价值或掩盖坏设计的注释，
 
 # No comments
 
-检查注释是否表达了代码无法表达的必要原因。默认只报告，用户明确要求修改时才删除或改写注释。
+Spawn Comment Sicko. Act on accepted findings.
 
-## 工作流
+Defer to Comment Sicko's fresh perspective.
 
-1. 使用用户指定的文件或 diff；没有指定时检查当前工作区改动。
-2. 用户明确要求独立评审时，启动一个只读子 Agent 检查注释。否则主 Agent直接审查。
-3. 删除候选包括：复述代码、描述旧实现、阶段性说明、用注释掩盖命名或结构问题。
-4. 保留候选必须解释代码无法表达的外部约束、兼容性原因、安全要求或非直观取舍。
-5. 对“不要删除”“必须保持此顺序”之类约束，先用 `$how` 或 `$why` 查证。
-6. 能用类型、测试、lint 或结构表达的约束，提出相应替代方案。不要为了删除注释扩大改动范围。
-7. 用户授权修改后，实施最小改动并运行相关检查。
+## Scope
 
-## 输出
+Use the caller's files or diff. Otherwise use the current diff against the base branch, default `main`, including the working tree.
 
-报告删除数量、保留注释及证据、建议编码的约束、已实施修改和仍待处理的问题。
+## Steps
+
+1. If the user asked for an independent reviewer and the session supports subagents, delegate the review with this skill's instructions and the scoped files. Otherwise perform the review directly. Do not claim a separate reviewer ran when it did not.
+2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
+4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
+5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
+6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.

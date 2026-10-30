@@ -2,457 +2,96 @@
 name: why
 description: "调查代码、设计、阈值、限制或历史决策为何存在，综合源码历史和可访问的项目证据输出有出处的结论。"
 ---
+
 # Why
 
-Investigate why something exists or works the way it does.
+Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-The goal is to recover the evidence behind a decision, not invent a plausible explanation from the current code.
+Use model and reasoning preferences from `~/.codex/pstack-models.md` only when supported by the current session tools. Otherwise use the parent model and report any tool limits.
 
-Use this skill for questions like:
+Use the current session's collaboration tools only when parallel investigation is appropriate and authorized. Give each investigator one evidence source and ask it to return findings with citations. Do not claim a tool or MCP was available unless it is present in the current session.
 
-* "Why was this designed this way?"
-* "Why do we use X instead of Y?"
-* "Why does this workaround exist?"
-* "Why is this limit 500?"
-* "What caused this regression?"
-* "What led to this architecture?"
-* "Was this added for a customer, incident, or technical constraint?"
-* "What alternatives did we consider?"
+## Operating Posture
 
-Use `how` when the question is about what the system does or how it runs. Use `why` when the question is about intent, history, constraints, or tradeoffs.
+Operate as a **careful, cautious, and precise investigator**. Be honest about what you know vs what you're inferring. Read `references/epistemics.md` for the full confidence framework and phrasing guide. The synthesizer must follow it.
 
-## Evidence before explanation
+## Step 1. Understand the Target and the Question
 
-Do not infer historical intent from the shape of the current code unless no better evidence exists.
+The **target** is usually a chunk of code, a pattern, a feature, or a named design decision. The **question** is usually a design rationale, a tradeoff, a motivating edge case, an external constraint, dead code, or a broad history sweep.
 
-Look for direct evidence first.
+If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context (open files, recent edits, Codex location, what was just discussed). State your interpretation briefly so the user can redirect if you're off, then proceed.
 
-Useful sources include:
+## Step 2. Establish the Code Anchor
 
-* Git history
-* commits
-* pull requests
-* review comments
-* GitHub issues
-* Linear or another issue tracker
-* design documents
-* RFCs
-* ADRs
-* project notes
-* team chat
-* incident reports
-* error tracking
-* observability data
-* product analytics
-* code comments and tests when they record a constraint
+Before spawning investigators, build the seed context inline: file paths and line ranges, key symbols (functions, classes, constants), the last few commits touching the target, PR numbers from merge commits (pattern `(#1234)` in the subject line), and any linked ticket IDs. Run `git blame -L <start>,<end> <file>` for last-touch commits, `git log --follow -p -- <file>` for full history with patches through renames, `git log --oneline -20 -- <file>` for recent commits with PR numbers visible, and `git log -1 --format=%B <commit>` to extract PR numbers. Then pull the PR bodies and discussion for any substantive commit: `gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews`. This anchor goes to every investigator and to the synthesizer.
 
-Use whatever sources ChatGPT can access in the current conversation.
+## Step 3. Spawn Parallel Investigators
 
-If the user names a repository, ticket, PR, document, incident, or other source that is accessible, inspect it before answering.
+**Default to the full parallel investigation.** The goal is a complete coverage map, not a minimal one. Document the null, don't skip the search.
 
-Do not ask the user to paste information that is already available through a connected source.
+### Discovery
 
-## Start with the target
+Before spawning investigators, list the available MCPs from the Codex environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Codex exposes for enabled MCP servers.
 
-Pin down what decision you are investigating.
+Map each available MCP to one evidence category:
 
-The target may be:
+1. Source control history
+2. Issue / ticket tracker
+3. Long-form documents
+4. Real-time team chat
+5. Infrastructure observability
+6. Error / exception tracking
+7. Product analytics warehouse
 
-* a function
-* a class
-* a configuration value
-* a feature
-* an API
-* an architectural pattern
-* a guard or workaround
-* a database field
-* a retry policy
-* a timeout
-* a threshold
-* a deleted or legacy path
-* a change in behavior
+Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Find the concrete code or artifact first when one exists.
+When authorized and supported, use one investigator per available evidence source. Otherwise inspect the sources directly. Keep each investigator focused on one source. Use the configured model only when supported.
 
-Record the important names that can lead you into the history:
+Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
+- the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
+- `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
+- the code anchor and the user's original question
 
-* file paths
-* symbols
-* configuration keys
-* commit hashes
-* PR numbers
-* issue IDs
-* feature names
-* error messages
-* customer or project names already present in the source
+### Investigator roster, one per available evidence category
 
-These are search terms, not conclusions.
+Each category below is uniquely positioned to surface one shape of "why", shown after "Best at". Use it to know what to expect back, to name a gap when a category returns empty, and, only in the rare provably-irrelevant case, to justify a skip.
 
-## Follow the evidence trail
+1. **Source control** (git history, `gh` for PRs, code comments, tests). Always spawn, the only guaranteed source. Best at *implementation-time rationale captured during review*.
+2. **Issue / ticket tracker** (e.g. Linear, Jira, GitHub Issues, Plane, Shortcut MCP). Best at *the product or business forcing function*. Strongest when the why is external to engineering.
+3. **Long-form documents** (e.g. Notion, Confluence, Google Docs, Coda MCP). Best at *long-form design rationale*, written out before it becomes code.
+4. **Real-time team chat** (e.g. Slack, Discord, Microsoft Teams, Mattermost MCP). Best at *real-time deliberation that never reached a doc*. Especially important when the source control, ticket, and doc paper trail is thin.
+5. **Infrastructure observability** (e.g. Datadog, New Relic, Honeycomb, Grafana, Splunk MCP). Best at *infrastructure and runtime reality that motivated the code*. Strongest when the target reacts to an infra signal (timeouts, retries, rate limits, circuit breakers).
+6. **Error / exception tracking** (e.g. Sentry, Rollbar, Bugsnag, Airbrake MCP). Best at *the specific exceptions and error trajectories that motivated defensive or corrective code*. Strongest for catch blocks, null guards, type checks, retries, and other defenses.
+7. **Product analytics warehouse** (e.g. Databricks, Snowflake, BigQuery, ClickHouse, dbt, Redshift MCP). Best at *product and data reality that shaped the code*. Strongest for flag-gated code, experiment-driven ships, data migrations, and "where did this number come from" questions.
 
-Start with the source closest to the implementation.
+### When to skip an investigator
 
-For code, this usually means:
+Only with an **explicit, written justification** that goes in the final Sources Consulted. Two valid reasons:
 
-1. Find the relevant file and symbol.
-2. Find commits that changed it.
-3. Find the PRs connected to those commits.
-4. Read the PR description and discussion.
-5. Follow linked issues, tickets, documents, and incidents.
-6. Search other connected sources using the concrete names you found.
+- **No MCP is available for that category** in this environment. Flag it as a gap, not a choice: "Real-time team chat skipped. No matching MCP available, so the conversational record was not searchable."
+- **The source is provably irrelevant**, not just "probably irrelevant." A high bar: "Error / exception tracking skipped. Target is a build-time script with no runtime code path."
 
-A useful clue should lead to the next source.
+If your scope assessment suggests a single-commit trivial target where the PR description already contains the complete answer, you may answer inline **only after** confirming all seven available category searches would be redundant. Say so explicitly. This should be rare.
 
-For example:
+## Step 4. Synthesize
 
-```text
-code
--> commit
--> PR
--> Linear ticket
--> design document
--> incident
-```
+Use a synthesizer only when collaboration tools are available and authorized. Use the configured model only when supported. It gets:
+1. The investigator findings, including any null results and any categories skipped with justification
+2. The code anchor
+3. The user's original question
+4. The epistemics framework from `references/epistemics.md`
+5. The synthesizer prompt template from `references/synthesizer-prompt.md`
 
-Do not search every source using only the broad feature name when a commit, ticket ID, error string, or exact symbol gives you a better query.
+## Step 5. Present
 
-## Search the sources that matter
+Present the synthesizer's output to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.
 
-Use available connected sources when they can contain part of the answer.
+## Output Format
 
-### Source control
+The structure is the one in `references/synthesizer-prompt.md`: The Question, The Code in Question, What We Found, What We Can Reasonably Infer, Competing Hypotheses, What We Don't Know, Sources Consulted, Confidence Summary. Adapt as needed, but keep the confidence separation intact, and keep Sources Consulted as one line per investigator, including the ones that returned nothing or were skipped, with the reason.
 
-Look for:
+After Sources Consulted, if the user's `why` question is a preCodex to changing this code, convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set for planning the change.
 
-* commit messages
-* PR descriptions
-* review comments
-* linked issues
-* reverted changes
-* earlier implementations
-* tests added with the change
-* comments that name a constraint
+## Common Failure Modes to Avoid
 
-Source control is often the strongest evidence because it sits close to the change that shipped.
-
-### Issue trackers
-
-Look for:
-
-* the original problem statement
-* acceptance criteria
-* customer requests
-* scope changes
-* parent initiatives
-* bug reports
-* linked incidents
-* implementation discussion
-
-Tickets often explain the product or business reason better than the code does.
-
-### Long-form documents
-
-Look for:
-
-* RFCs
-* ADRs
-* design docs
-* PRDs
-* postmortems
-* meeting notes
-* architecture documents
-
-These are especially useful for alternatives considered and rejected.
-
-### Team chat
-
-When available, look for:
-
-* the feature name
-* PR links
-* ticket IDs
-* error messages
-* discussion near the date of the change
-* incident channels
-* conversations involving the authors or reviewers
-
-Chat often contains decisions that never made it into the formal record.
-
-### Error and observability data
-
-Use these when the target looks like a response to runtime behavior.
-
-Examples include:
-
-* retries
-* timeouts
-* circuit breakers
-* null guards
-* rate limits
-* memory limits
-* backoff
-* defensive checks
-* feature flags
-
-Look for errors, incidents, metric changes, or release correlations that line up with the code change.
-
-### Product data
-
-Use product analytics when a threshold, rollout, experiment, or user behavior may have shaped the decision.
-
-Look for evidence such as:
-
-* usage distributions
-* experiment results
-* feature adoption
-* traffic levels
-* data volumes
-* rollout dates
-
-Do not invent a data-driven rationale just because a number looks deliberate.
-
-## Treat missing evidence as missing evidence
-
-A search that finds nothing is useful.
-
-Say which source you checked and that it did not contain evidence for the decision.
-
-Do not turn an empty search into:
-
-"therefore the decision was probably made informally."
-
-That is still an inference.
-
-The correct answer may be:
-
-"We can see when this changed and what it does, but I could not find a recorded reason for choosing this design."
-
-That is better than a convincing story with no source behind it.
-
-## Separate fact from inference
-
-Keep three levels clear.
-
-### Direct evidence
-
-The source explicitly states the reason.
-
-Examples:
-
-* a PR says the old implementation caused duplicate charges
-* a ticket says a customer requires a 15 minute grace period
-* a postmortem says retries caused duplicate writes
-
-State these confidently and cite the source.
-
-### Strong inference
-
-Several pieces of evidence point to the same conclusion, but nobody states it directly.
-
-Say:
-
-* "This appears to have been..."
-* "The evidence suggests..."
-* "The most likely reason is..."
-
-Then explain the evidence.
-
-### Unknown
-
-The record does not support an answer.
-
-Say so.
-
-Do not promote an inference to fact because it sounds sensible.
-
-## Check chronology
-
-Dates matter.
-
-Build the smallest useful timeline when several sources are involved.
-
-For example:
-
-```text
-12 May
-production errors increase
-
-14 May
-ticket created
-
-16 May
-PR opened
-
-18 May
-fix merged
-
-19 May
-errors stop
-```
-
-Chronology can support a conclusion, but correlation alone does not prove intent.
-
-A change merging after an incident does not automatically mean the incident caused it.
-
-Look for the link in a PR, ticket, comment, or document.
-
-## Look for alternatives
-
-When the question asks why X instead of Y, find evidence that Y was actually considered.
-
-Do not manufacture rejected alternatives from your own architecture knowledge.
-
-Distinguish:
-
-* an alternative the team explicitly considered
-* an alternative that existed in an earlier implementation
-* an alternative you think would have been possible
-
-Only the first two are historical evidence.
-
-You may discuss the third as your own analysis, but label it separately.
-
-## Surface contradictions
-
-History is messy.
-
-A ticket may say one thing while the merged PR does another.
-
-A design document may describe an approach that was abandoned during implementation.
-
-A comment may claim a workaround is temporary even though it became permanent.
-
-When sources disagree, show the disagreement.
-
-Do not silently choose the cleaner story.
-
-Prefer the source closest to the final decision when judging what actually shipped, but preserve earlier sources when they explain how the decision changed.
-
-## Handle current code carefully
-
-The current implementation can tell you:
-
-* what exists now
-* what behavior survived
-* what assumptions are encoded
-* what constraints tests enforce
-
-It cannot reliably tell you why those choices were originally made.
-
-Do not write:
-
-"The code uses a queue because the team wanted loose coupling."
-
-unless a source says that.
-
-The safe version is:
-
-"The current design uses a queue between X and Y. I found no source that records why that choice was made."
-
-## For regressions and incidents
-
-When investigating a regression, answer a slightly different question.
-
-Find:
-
-* the last known good behavior
-* the change that altered it
-* what that change was trying to achieve
-* the failure it introduced
-* when the failure became visible
-* whether earlier fixes were attempted
-* whether any fix was reverted
-* what remains unresolved
-
-Keep cause and motivation separate.
-
-A PR may have had a valid goal and still introduced the regression.
-
-## For thresholds and constants
-
-When investigating a number such as a timeout, limit, grace period, or batch size, search for the number itself as well as the symbol that contains it.
-
-Look in:
-
-* git history
-* PR discussion
-* tickets
-* documents
-* incidents
-* dashboards
-* analytics
-
-If you cannot find where the number came from, say that the value is unexplained.
-
-Do not reverse-engineer a neat justification from the number.
-
-## Answer structure
-
-Lead with the best-supported answer.
-
-For a small question, a few paragraphs may be enough.
-
-For a larger investigation, use this shape when it helps.
-
-### What we know
-
-State the reason supported by direct evidence.
-
-### Evidence
-
-Walk through the important sources in chronological or causal order.
-
-Do not dump every search result.
-
-### What changed
-
-Explain how the decision evolved when the record shows more than one design.
-
-### Confidence
-
-Say whether the conclusion is:
-
-* directly documented
-* strongly supported
-* plausible but unproven
-* unknown
-
-Explain the gap when confidence is limited.
-
-### Open questions
-
-Include only unresolved questions that materially affect the conclusion.
-
-## Citations
-
-Cite the source behind claims about intent.
-
-Prefer specific references such as:
-
-* PR number
-* issue or ticket ID
-* commit
-* document
-* chat thread
-* incident
-* error-tracker issue
-
-When ChatGPT can provide a native citation, use it.
-
-A reader should be able to trace the important claims back to evidence.
-
-## Writing
-
-Apply the `unslop` skill to the final answer.
-
-Use plain language.
-
-Do not turn the investigation into detective-roleplay.
-
-Do not pad weak evidence with confident prose.
-
-Do not narrate every search you performed.
-
-Give the user the reason, the evidence, the uncertainty, and any contradiction that matters.
-
-Reply with the investigation itself, not a report about the workflow.
+- **Recency bias**. Assuming the most recent commit is authoritative. The current shape is often the accretion of many earlier decisions. Trace back.

@@ -39,7 +39,7 @@ const replacements = [
 let changed = 0;
 for (const file of await markdownFiles(join(root, "skills"))) {
   const before = await readFile(file, "utf8");
-  let after = before;
+  let after = before.replace(/^disable-model-invocation:\s*true\r?\n/gm, "");
   for (const [pattern, replacement] of replacements) after = after.replace(pattern, replacement);
   if (after !== before) {
     await writeFile(file, after, "utf8");
