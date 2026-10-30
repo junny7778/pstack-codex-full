@@ -34,8 +34,8 @@ When the model rule is missing and it matters, ask whether the user wants to pic
 
 ## Get set up
 
-1. Install with `/add-plugin pstack` in chat, or from Customize in the sidebar.
-2. Run [`/setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and writes a rule. The rule applies to new chats. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+1. Install **pstack Codex 完整版** from the Codex Plugins module.
+2. Run [`/setup-pstack`](../setup-pstack/SKILL.md) to set model and reasoning preferences. They apply only when the current collaboration tools support those settings. Then it can offer verification skills for the project, unless they already exist.
 3. Start a real task with `/poteto-mode`, a goal, and a check that can pass or fail.
 
 Skills can load when the user's request matches their descriptions, or when invoked by name. `/poteto-mode` is a useful explicit entry point for substantial engineering work. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).

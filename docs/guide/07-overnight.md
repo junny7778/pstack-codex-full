@@ -65,7 +65,7 @@ When you're back, ask for the run in review form:
 /show-me-your-work catch me up on what you did last night
 ```
 
-Before the skill hands back its summary, it spawns a reviewer on a different model family to read the trail and the transcript, and the reply ends with an Attention section listing what deserves your scrutiny. Read that section first, then the log rows it points at. You're auditing decisions, not re-reading the whole night.
+When collaboration tools are available, the skill asks an independent reviewer to read the trail and transcript. It ends with an Attention section listing what deserves your scrutiny. If a distinct model is unsupported, it does not claim a cross-model review. Read that section first, then the log rows it points at. You're auditing decisions, not re-reading the whole night.
 
 For a quick status instead of an audit, run [`/ketchup`](../../skills/ketchup/SKILL.md) in the chat that ran the work. It reads only, and tells you in plain words what changed since your last message, with the screenshots and small diagrams the work produced. Then it lists each call waiting on you, such as a merge, an approval, or a choice between options, with its pick, the evidence, and the risk, so you can decide from the reply alone.
 
